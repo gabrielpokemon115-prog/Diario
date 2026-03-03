@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Diary Pro</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#bb86fc">
+    <link rel="apple-touch-icon" href="icon-480.png">
+    <style>
+        :root {
+            --bg: #121212;
+            --card: #1e1e1e;
+            --text: #e0e0e0;
+            --accent: #bb86fc;
+            --secondary: #03dac6;
+            --danger: #cf6679;
+            --muted: #555;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        .container { max-width: 600px; margin: auto; }
+        
+        h1 { text-align: center; color: var(--accent); font-size: 1.8rem; margin-bottom: 30px; outline: none; }
+        
+        [contenteditable]:empty:before { content: attr(data-placeholder); color: #666; cursor: text; }
+
+        .bloco-nota { 
+            background: var(--card); 
+            margin-bottom: 25px; 
+            padding: 20px; 
+            border-radius: 12px; 
+            position: relative;
+            border-left: 4px solid var(--accent);
+        }
+
+        .btn-delete-bloco {
+            position: absolute; top: 15px; right: 15px;
+            background: none; border: none; color: var(--muted);
+            cursor: pointer; font-size: 1.2rem; transition: 0.2s;
+        }
+        .btn-delete-bloco:hover { color: var(--danger); }
+
+        .titulo-nota { 
+            font-weight: bold; font-size: 1.2rem; display: block; 
+            margin-bottom: 15px; padding-right: 30px;
+            outline: none; color: var(--secondary); 
+        }
+
+        ul { list-style: none; padding: 0; }
+        
+        .linha-item { 
+            display: flex; align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .linha-item::before {
+            content: "•"; color: var(--accent);
+            margin-right: 10px; font-size: 1.2rem; line-height: 1.4;
+        }
+
+        .texto-item { 
+            flex-grow: 1; outline: none; font-size: 1rem;
+            line-height: 1.4; border-bottom: 1px solid #2a2a2a; padding-bottom: 4px;
+        }
+
+        .btn-delete-linha {
+            background: none; border: none; color: var(--muted);
+            cursor: pointer; font-size: 0.8rem; margin-left: 8px;
+            opacity: 0.3; transition: 0.2s;
+        }
+        .linha-item:hover .btn-delete-linha { opacity: 1; }
+
+        .btn { 
+            cursor: pointer; border: none; border-radius: 8px; 
+            padding: 12px; font-weight: bold; transition: 0.2s; margin-bottom: 10px;
+        }
+        
+        .btn-add-bloco { background-color: var(--accent); color: #000; width: 100%; }
+        .btn-add-linha { background-color: transparent; color: var(--secondary); border: 1px dashed var(--secondary); width: 100%; margin-top: 15px; }
+        
+        .row { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-json { background-color: #333; color: var(--text); flex: 1; }
+        .btn-html { background-color: var(--secondary); color: #000; width: 100%; margin-top: 20px; }
+        
+        #input-json { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 id="main-title" contenteditable="true" data-placeholder="Título do Diário">DIARIO</h1>
+
+    <div id="lista-blocos"></div>
+
+    <button class="btn btn-add-bloco" onclick="adicionarBloco()">+ Novo Bloco</button>
+    
+    <div class="row">
+        <button class="btn btn-json" onclick="exportarJSON()">📤 Exportar JSON</button>
+        <button class="btn btn-json" onclick="document.getElementById('input-json').click()">📥 Importar JSON</button>
+    </div>
+    
+    <input type="file" id="input-json" accept=".json" onchange="importarJSON(event)">
+    
+    <button class="btn btn-html" onclick="exportarHTMLEstrutura()">💾 SALVAR ESTRUTURA (HTML)</button>
+</div>
+
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW registrado!', reg))
+            .catch(err => console.error('Erro no SW:', err));
+        });
+    }
+
+    const listaBlocos = document.getElementById('lista-blocos');
+    const mainTitle = document.getElementById('main-title');
+
+    window.onload = () => {
+        const savedData = localStorage.getItem('diary_auto_save');
+        const savedTitle = localStorage.getItem('diary_title_save');
+        if (savedData) listaBlocos.innerHTML = savedData;
+        if (savedTitle) mainTitle.innerText = savedTitle;
+    };
+
+    function autoSave() {
+        localStorage.setItem('diary_auto_save', listaBlocos.innerHTML);
+        localStorage.setItem('diary_title_save', mainTitle.innerText);
+    }
+
+    document.addEventListener('input', (e) => {
+        if (e.target.hasAttribute('contenteditable')) autoSave();
+    });
+
+    function adicionarBloco(titulo = '', itens = []) {
+        const div = document.createElement('div');
+        div.className = 'bloco-nota';
+        div.innerHTML = `
+            <button class="btn-delete-bloco" onclick="this.parentElement.remove(); autoSave();">🗑</button>
+            <span class="titulo-nota" contenteditable="true" data-placeholder="Título da Nota...">${titulo}</span>
+            <ul class="lista-itens"></ul>
+            <button class="btn btn-add-linha" onclick="adicionarLinha(this)">+ Linha</button>
+        `;
+        listaBlocos.appendChild(div);
+        
+        const ul = div.querySelector('ul');
+        if (itens.length > 0) {
+            itens.forEach(texto => adicionarLinhaManual(ul, texto));
+        } else {
+            adicionarLinhaManual(ul);
+        }
+        autoSave();
+    }
+
+    function adicionarLinha(btn) {
+        adicionarLinhaManual(btn.previousElementSibling, '', true);
+    }
+
+    function adicionarLinhaManual(ul, texto = '', focus = false) {
+        const li = document.createElement('li');
+        li.className = 'linha-item';
+        li.innerHTML = `
+            <span class="texto-item" contenteditable="true" data-placeholder="Escreva algo...">${texto}</span>
+            <button class="btn-delete-linha" onclick="this.parentElement.remove(); autoSave();">✕</button>
+        `;
+        ul.appendChild(li);
+        if (focus) li.querySelector('.texto-item').focus();
+        autoSave();
+    }
+
+    function exportarHTMLEstrutura() {
+        const clone = document.documentElement.cloneNode(true);
+        clone.querySelector('#lista-blocos').innerHTML = '';
+        clone.querySelector('#main-title').innerText = 'DIARIO';
+        
+        const blob = new Blob(["<!DOCTYPE html>\n" + clone.outerHTML], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'diario.html';
+        a.click();
+    }
+
+    function exportarJSON() {
+        const dados = {
+            titulo: mainTitle.innerText,
+            blocos: []
+        };
+        
+        document.querySelectorAll('.bloco-nota').forEach(bloco => {
+            const itens = [];
+            bloco.querySelectorAll('.texto-item').forEach(item => itens.push(item.innerText));
+            dados.blocos.push({
+                titulo: bloco.querySelector('.titulo-nota').innerText,
+                itens: itens
+            });
+        });
+
+        const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'diario.json';
+        a.click();
+    }
+
+    function importarJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dados = JSON.parse(e.target.result);
+            mainTitle.innerText = dados.titulo || 'DIARIO';
+            listaBlocos.innerHTML = '';
+            dados.blocos.forEach(b => adicionarBloco(b.titulo, b.itens));
+            autoSave();
+        };
+        reader.readAsText(file);
+    }
+</script>
+</body>
+</html>

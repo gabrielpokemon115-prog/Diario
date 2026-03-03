@@ -1,6 +1,6 @@
 const CACHE_NAME = 'dark-diary-v1';
 const ASSETS = [
-  './diario.html',
+  './index.html',
   './manifest.json',
   './icon-480.png'
 ];

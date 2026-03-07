@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dark-diary-v1';
+const CACHE_NAME = 'dark-diary-v2';
 const ASSETS = [
   './index.html',
   './manifest.json',
